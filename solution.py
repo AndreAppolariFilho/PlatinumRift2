@@ -157,6 +157,46 @@ def bfs_path(graph, start, end, graph_properties):
             visited.add(vertex)
     return path
 
+def bfs_path_nearest_friend(graph, start, graph_properties):
+    queue = [[start]]
+    visited = set()
+    while queue:
+        path = queue.pop(0)
+        vertex = path[-1]
+        if graph_properties[vertex]['quantity'][0]>0:
+                return path
+        for adjacent in graph[vertex]:
+            if graph_properties[adjacent]['quantity'][0]>0:
+                return path
+        if vertex not in visited:
+            for current_neighbour in graph[vertex]:
+                new_path = list(path)
+                new_path.append(current_neighbour)
+                queue.append(new_path)
+            visited.add(vertex)
+    return path
+
+def bfs_path_nearest_enemy(graph, start, graph_properties):
+    queue = [[start]]
+    visited = set()
+    while queue:
+        path = queue.pop(0)
+        vertex = path[-1]
+        if graph_properties[vertex]['quantity'][1]>0:
+                return path
+        for adjacent in graph[vertex]:
+            if graph_properties[adjacent]['quantity'][1]>0:
+                return path
+        if vertex not in visited:
+            for current_neighbour in graph[vertex]:
+                new_path = list(path)
+                new_path.append(current_neighbour)
+                queue.append(new_path)
+            visited.add(vertex)
+    return path
+
+
+
 def bfs_deviate(graph, start, end, graph_properties):
     queue = [[start]]
     visited = set()
@@ -285,9 +325,7 @@ while True:
         map_properties[z_id]['is_visible'] = visible
         if map_properties[z_id]['last_seen'] >=10:
             map_properties[z_id]['is_visible'] = False
-            #map_properties[z_id]['owner_id'] = -1
-           # print('LAST SEEN', file=sys.stderr)
-        if z_id != id_friendly or (z_id == id_friendly and (last_respawn>=2 or map_properties[z_id]['quantity'][0]>=5)):
+        if z_id != id_friendly or (z_id == id_friendly and (last_respawn>=5 or map_properties[z_id]['quantity'][0]>=5)):
             
             if map_properties[z_id]['quantity'][0] > 0 and\
                 map_properties[z_id]['quantity'][1] > 0:
@@ -299,11 +337,10 @@ while True:
                     dists = []
                     if z_id != id_friendly:
                         for adjacent in graph[z_id]:
-                            #map_properties[z_id]['quantity'][0] = 0
                             if map_properties[adjacent]['owner_id']==1 or map_properties[adjacent]['owner_id']==-1 and not map_properties[adjacent]['is_leaf_path']:  
                                 dests_ids.append(adjacent)
                                 map_properties[adjacent]['weight'] = map_properties[z_id]['weight'] + 1
-                                print('dest_id0 ', adjacent, file=sys.stderr)
+                                
                     else:
                         for adjacent in graph[z_id]:
                             dests_ids.append(adjacent)
@@ -312,7 +349,7 @@ while True:
                                 map_properties[adjacent]['weight'] = map_properties[z_id]['weight'] + 1
                                 paths_calculated.append([{z_id:adjacent}])
                                 first_iteration = False
-                                print('dest_id1 ', adjacent, file=sys.stderr)
+                                
                     #print('dests_ids ',dests_ids, file=sys.stderr)        
                     if dests_ids == []:
                         dists = []
@@ -340,7 +377,6 @@ while True:
                                 
                                 if dist_future['to_enemy']<dist_now['to_enemy']  and dist_future['to_base']>dist_now['to_base'] and not map_properties[adjacent]['is_leaf_path']:
                                     dests_ids.append(adjacent)
-                                    print('dest_id2 ', adjacent, file=sys.stderr)
                                     map_properties[adjacent]['weight'] = map_properties[z_id]['weight'] + 1
                                     #dists.append({'id':adjacent, 'dist':dist_future['to_enemy']})
                                 
@@ -369,12 +405,19 @@ while True:
                                 if dist_future['to_base']>dist_now['to_base'] and not map_properties[adjacent]['is_leaf_path']:
                                     dests_ids.append(adjacent)
                                     map_properties[adjacent]['weight'] = map_properties[z_id]['weight'] + 1
-                                    print('dest_id3 ', adjacent, file=sys.stderr)
+                                    
                                     #dists.append({'id':adjacent, 'dist':dist_future['to_enemy']})
                                     
                     if dests_ids == []:
                         map_properties[z_id]['is_leaf_path'] = True
-                        dests_ids.append(bfs_deviate(graph, z_id, 0, map_properties)[1])
+                        nearest_friendly = bfs_path_nearest_friend(graph, id_enemy, map_properties)[-1]
+                        print('z_id ',z_id,file=sys.stderr)
+                        print(bfs_path_nearest_friend(graph, id_enemy, map_properties), file=sys.stderr)
+                        path = bfs_path(graph, z_id, nearest_friendly, map_properties)
+                        print('nearest_friendly ', nearest_friendly, file=sys.stderr)
+                        print('path ', path, file=sys.stderr)
+                        if len(path)>1:
+                            dests_ids.append(path[1])
                         print('is_leaf_path ', z_id, file=sys.stderr)
                         '''
                         if dests_ids==[]:
@@ -387,36 +430,46 @@ while True:
                                
                             #    count -= 1
                             #    print(i, ' ',map_properties[i], file=sys.stderr)
-                        '''    
+                        '''
+                    nearest_enemy = bfs_path_nearest_enemy(graph, id_friendly, map_properties)[-1]
+                    path = bfs_path(graph, z_id, nearest_enemy, map_properties)
+                    if len(path)>1 and len(path)<5:
+                        in_attack.append(path[1])
         else:
             last_respawn += 1
         if map_properties[z_id]['quantity'][0]>0:
             for d_id in dests_ids:
                 #print('pods ',math.ceil(pods_p0/len(dests_ids)), file=sys.stderr)
                 
-                if map_properties[z_id]['quantity'][0] > 0 and not map_properties[d_id]['is_leaf_path']:
+                if map_properties[z_id]['quantity'][0] > 0 :
                     if z_id == id_friendly:
                         last_respawn = 0
-                    print(z_id, ' ' , d_id, file=sys.stderr)
+                    #print(z_id, ' ' , d_id, file=sys.stderr)
                     map_properties[d_id]['last_seen'] = 0
                     #map_properties[z_id]['quantity'][0] = 0
                     map_properties[z_id]['quantity'][0] -= math.ceil(pods_p0/len(dests_ids))
                     possible_route.append([z_id, d_id, math.ceil(pods_p0/len(dests_ids))])
+                else:
+                    print('not acceptables ',z_id, file=sys.stderr)
             #print(possible_route, file=sys.stderr)
     #print(possible_route, file=sys.stderr)
     
+    
+    # TODO criar um mecanismo de defesa
     for in_attack_id in in_attack:
         count = 0
-        for route in possible_route:
-            if count == 10:
-                break
-            if route[0] != in_attack_id:
-                #print('attacking', file=sys.stderr)
-                path = bfs_path(graph, route[0], in_attack_id,map_properties)
-                dist = len(path)
-                if dist < 30:
-                    route[1] = path[1]
+        for a_id in graph[in_attack_id]:
+            for route in possible_route:
+                if count == 10:
+                    break
+                if route[0] != in_attack_id:
+                    #print('attacking', file=sys.stderr)
+                    path = bfs_path(graph, route[0], a_id,map_properties)
+                    dist = len(path)
+                    if dist > 1:
+                        route[1] = path[1]
                     count+=1
+    
     '''
     for node in map_properties:
         dests_ids = []
